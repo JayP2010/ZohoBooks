@@ -1,0 +1,60 @@
+
+/*
+  This is a custom function to update the 'Location' field in the customer master
+  based on the city mentioned in the customer billing address.
+  Module               - Customers
+  Workflow Type        - Field Update (Create and Edit)
+  Execution Time       - Immediate
+*/
+// Input parameters: customer_id and organization_id
+customer_id = customer.get("contact_id");
+organization_id = organization.get("organization_id");
+dc = organization.get("data_center_extension");
+// Fetching customer details
+get_customer_response = invokeurl
+[
+	url :"https://www.zohoapis" + dc + "/books/v3/contacts/" + customer_id + "?organization_id=" + organization_id
+	type :GET
+	connection:"zbooks"
+];
+if(get_customer_response.get("code") == 0)
+{
+	customer = get_customer_response.get("contact");
+	// Extracting city from billing address
+	if(customer.get("billing_address").containsKey("city"))
+	{
+		city = customer.get("billing_address").get("city");
+		// Preparing the update data for custom field 'Location'
+		update_data = Map();
+		custom_fields = list();
+		custom_field = Map();
+		custom_field.put("label","Location");
+		custom_field.put("value",city);
+		custom_fields.add(custom_field);
+		update_data.put("custom_fields",custom_fields);
+		// Updating the custom field 'Location'
+		update_response = invokeurl
+		[
+			url :"https://www.zohoapis" + dc + "/books/v3/contacts/" + customer_id + "?organization_id=" + organization_id
+			type :PUT
+			parameters:update_data.toString()
+			connection:"zbooks"
+		];
+		if(update_response.get("code") == 0)
+		{
+			info "Location updated successfully.";
+		}
+		else
+		{
+			info "Failed to update location: " + update_response.get("message");
+		}
+	}
+	else
+	{
+		info "City not found in billing address.";
+	}
+}
+else
+{
+	info "Failed to fetch customer details: " + get_customer_response.get("message");
+}
