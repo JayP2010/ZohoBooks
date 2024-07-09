@@ -1,0 +1,53 @@
+/* Get Warehouse wise Inward supply from Srock in Flow table with cost price*/
+SELECT
+		 'In' as "Type",
+		 "Stock In Flow Table"."Stock In Flow ID" AS "Stock In Flow ID",
+		 "Stock In Flow Table"."Product ID" as "Product ID",
+		 "Stock In Flow Table"."Warehouse ID" as "Warehouse ID",
+		 "Stock In Flow Table"."Transaction Date" as "Date",
+		 "Stock In Flow Table"."Quantity In" as "Quantity In",
+		 0 as "Quantity Out",
+		 "Stock In Flow Table"."Total (BCY)" as "Cost",
+		 0 as "Committed Stock",
+		 "Stock In Flow Table"."Quantity In" + 0 /*"Quantity In" + "Quantity Out" as "Stock in Hand"*/ AS "Stock in Hand"
+FROM  "Stock In Flow Table" 
+
+/* Get outward supply from Stock out flow table with cost price available in FIFO Mapping Table*/
+UNION ALL
+ SELECT
+		 'Out' as "Type",
+		 "Stock Out Flow Table"."Stock Out Flow ID",
+		 "Stock Out Flow Table"."Product ID",
+		 "Stock Out Flow Table"."Warehouse ID",
+		 "Stock Out Flow Table"."Transaction Date",
+		 0,
+		 -1 * "Stock Out Flow Table"."Quantity Out",
+		 -1 * sum("FIFO Mapping Table"."Total (BCY)"),
+		 0,
+		 0 + (-1 * "Stock Out Flow Table"."Quantity Out")
+FROM  "Stock Out Flow Table"
+LEFT JOIN "FIFO Mapping Table" ON "Stock Out Flow Table"."Stock Out Flow ID"  = "FIFO Mapping Table"."Stock Out Flow ID"  
+GROUP BY 1,
+	 2,
+	 3,
+	 4,
+	 5,
+	 7,
+	  10 
+
+/*Trasnfer Orders transactions are not Including in Stock in flow and out flow table which we are adding sepratly*/
+UNION ALL
+ SELECT
+		 'Transfer' as "Type",
+		 "Transfer Order Items"."Item ID",
+		 "Transfer Order Items"."Product ID",
+		 "Transfer Order Items"."Warehouse ID",
+		 "Transfer Order"."Date",
+		 if("Transfer Order"."Status"  = 'in_transit', 0, if("Transfer Order Items"."Transferred Quantity"  > 0, "Transfer Order Items"."Transferred Quantity", 0)),
+		 if("Transfer Order Items"."Transferred Quantity"  < 0, "Transfer Order Items"."Transferred Quantity", 0),
+		 "Inventory Adjustment Items"."Price (BCY)" * "Transfer Order Items"."Transferred Quantity",
+		 0,
+		 if("Transfer Order"."Status"  = 'in_transit', 0, if("Transfer Order Items"."Transferred Quantity"  > 0, "Transfer Order Items"."Transferred Quantity", 0)) + if("Transfer Order Items"."Transferred Quantity"  < 0, "Transfer Order Items"."Transferred Quantity", 0)
+FROM  "Transfer Order Items"
+LEFT JOIN "Transfer Order" ON "Transfer Order Items"."Transfer Order ID"  = "Transfer Order"."Transfer Order ID" 
+LEFT JOIN "Inventory Adjustment Items" ON "Transfer Order Items"."Item ID"  = "Inventory Adjustment Items"."Inventory Adjustment Item ID"  
